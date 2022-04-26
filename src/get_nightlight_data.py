@@ -39,7 +39,7 @@ def get_load_tif(year, month):
     # Submit request with token bearer
     
     # first ne to get the url for the right files
-    path_url = f'https://eogdata.mines.edu/nighttime_light/monthly/v10/{year}/{year}{month}/vcmslcfg/'
+    path_url = f'https://eogdata.mines.edu/nighttime_light/monthly/v10/{year}/{year}{month}/vcmcfg/'
     soup = BeautifulSoup(requests.get(path_url).text, "html.parser")
     files = []
     for td in soup.find_all('td'):
@@ -49,10 +49,11 @@ def get_load_tif(year, month):
                 files.append(f)
     
     files_list = list(set(files))
+    
     # download all those files and save
     tifs = {}
     for n in files_list :
-        data_url = f'https://eogdata.mines.edu/nighttime_light/monthly/v10/{year}/{year}{month}/vcmslcfg/{n}'
+        data_url = f'https://eogdata.mines.edu/nighttime_light/monthly/v10/{year}/{year}{month}/vcmcfg/{n}'
         auth = 'Bearer ' + access_token
         headers = {'Authorization' : auth}
         # make request
@@ -67,7 +68,8 @@ def get_load_tif(year, month):
         tifs[n] = rxr.open_rasterio(f'/vsitar/vsigzip/{output_file}/{tif_file}', masked = True).rio.clip(geometries=Kenya.geometry,crs = Kenya.crs, from_disk=True, drop=True, all_touched=True).squeeze().to_dataframe(f'nl_{year}{month}').reset_index()
 
     # merge to one dataframe
-    out = pd.concat([tifs[files_list[0]],tifs[files_list[1]]], ignore_index=True)
+    dfs = [tifs[x] for x in files_list]
+    out = pd.concat(dfs, ignore_index=True)
     out = out.drop(['band','spatial_ref'],axis=1)
     # delete tifs from memory
     del(tifs)
@@ -100,14 +102,15 @@ if __name__ == "__main__":
     df = pd.DataFrame(columns=['y','x'])
     list_files = []
     for y in years:
-        for m in months: 
-            dfym, lst = get_load_tif(year = y, month=m)
-            list_files.extend(lst)
-            df = pd.merge(df, dfym, on=['y','x'], how='outer')
-            
+        for m in months:
+            print(y,m) 
+            try : 
+                dfym, lst = get_load_tif(year = y, month=m)
+                list_files.extend(lst)
+                df = pd.merge(df, dfym, on=['y','x'], how='outer')
+            except: continue 
             for file in os.listdir(folder_path):
                 os.remove(folder_path + file)
-
 
     # export to csv
     df.to_csv(wd.parent/'data'/'satellite'/'nightlight_raw.csv', index=False)
@@ -116,4 +119,3 @@ if __name__ == "__main__":
     with open(wd.parent/'data'/'satellite'/'files_list_nightlight.txt', 'w') as output:
         file_content = "\n".join(list_files)
         output.write(file_content)
-
