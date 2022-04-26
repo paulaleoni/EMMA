@@ -76,52 +76,44 @@ def get_load_tif(year, month):
     return out , files_list
 
 ####################
-# load shapefile
+# execute code
 ######################
 
-wd = Path.cwd()
+if __name__ == "__main__":
+    ####### load shapefile ##########
+    wd = Path.cwd()
 
-shp_file = wd.parent/'data'/'shp'/'Kenya.zip'
+    shp_file = wd.parent/'data'/'shp'/'Kenya.zip'
 
-# load shapefile in geopandas dataframe
-Kenya_regions = gpd.read_file(shp_file)
+    # load shapefile in geopandas dataframe
+    Kenya_regions = gpd.read_file(shp_file)
 
-Kenya = gpd.GeoDataFrame(index=[0],geometry=[Kenya_regions['geometry'].unary_union])
+    Kenya = gpd.GeoDataFrame(index=[0],geometry=[Kenya_regions['geometry'].unary_union])
 
-###########################
-# apply function
-#######################
+    ############ get data ################
+    years = [2012 + x for x in range(9)]
+    months = [str(0) + str(x) for x in range(1,10)]
+    months.extend(['10','11','12'])
 
-years = [2012 + x for x in range(9)]
-months = [str(0) + str(x) for x in range(1,10)]
-months.extend(['10','11','12'])
+    folder_path = f'{wd.parent}\data\\temp\\'
 
-folder_path = f'{wd.parent}\data\\temp\\'
-
-years = [2019,2020]
-months = ['01']
-
-df = pd.DataFrame(columns=['y','x'])
-list_files = []
-for y in years:
-    for m in months: 
-        dfym, lst = get_load_tif(year = y, month=m)
-        list_files.extend(lst)
-        df = pd.merge(df, dfym, on=['y','x'], how='outer')
-        
-        for file in os.listdir(folder_path):
-            os.remove(folder_path + file)
+    df = pd.DataFrame(columns=['y','x'])
+    list_files = []
+    for y in years:
+        for m in months: 
+            dfym, lst = get_load_tif(year = y, month=m)
+            list_files.extend(lst)
+            df = pd.merge(df, dfym, on=['y','x'], how='outer')
+            
+            for file in os.listdir(folder_path):
+                os.remove(folder_path + file)
 
 
-########################
-# export
-###########################
+    # export to csv
+    df.to_csv(wd.parent/'data'/'satellite'/'nightlight_raw.csv', index=False)
 
-# export to csv
-df.to_csv(wd.parent/'data'/'satellite'/'nightlight_raw.csv', index=False)
-
-# export list of files to txt
-with open(wd.parent/'data'/'satellite'/'files_list_nightlight.txt', 'w') as output:
-    file_content = "\n".join(list_files)
-    output.write(file_content)
+    # export list of files to txt
+    with open(wd.parent/'data'/'satellite'/'files_list_nightlight.txt', 'w') as output:
+        file_content = "\n".join(list_files)
+        output.write(file_content)
 
