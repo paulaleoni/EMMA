@@ -1,3 +1,6 @@
+'''
+this file merges the monthly PM2.5 data downloaded from https://sites.wustl.edu/acag/datasets/surface-pm2-5/#V5.GL.02 and extracts the relevant datapoints for Kenya for the given tiem frame. It exports a csv
+'''
 
 from pathlib import Path
 from zipfile import ZipFile
