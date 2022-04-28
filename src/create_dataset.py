@@ -16,7 +16,7 @@ data_path = wd.parent/'data'
 
 # pollution data
 pol = pd.read_csv(data_path/'satellite'/'pollution_raw.csv')
-pol = gpd.GeoDataFrame(pol, geometry=gpd.points_from_xy(pol.lon + 0.005, pol.lat + 0.005).buffer(.01, cap_style = 3)).drop(['lon','lat'],axis=1) # make polygon
+pol = gpd.GeoDataFrame(pol, geometry=gpd.points_from_xy(pol.lon, pol.lat)).drop(['lon','lat'],axis=1) # make polygon
 
 # nightlight data
 nl = pd.read_csv(data_path/'satellite'/'nightlight_raw.csv')
@@ -25,18 +25,24 @@ nl = gpd.GeoDataFrame(nl, geometry=gpd.points_from_xy(nl.x, nl.y)).drop(['x','y'
 # transformer data
 trans = pd.read_csv(data_path/'transformer'/'transformer_all_raw.csv')
 trans = gpd.GeoDataFrame(trans, geometry=trans['geometry'].apply(wkt.loads))
+radius = .01 # 0.01 deg = 1111 m
+trans.geometry = trans.geometry.buffer(radius)
 
+# join pol and nl values to transformer within radius
+join = gpd.sjoin(trans,pol, how='left').drop(['index_right'], axis=1)
+# aggregate data
+cols = [x for x in join.columns if x.startswith('pol')]
+agg = join.groupby(['item'])[cols].sum().reset_index()
+join = join.drop(cols, axis=1).drop_duplicates().merge(agg, on='item')
 
-# join data
-join_pol_trans = gpd.sjoin(pol,trans, how='left').dropna(subset=['item']).drop(['index_right'], axis=1)
-df = gpd.sjoin(join_pol_trans, nl, how='left').drop(['index_right'], axis=1) # then need to do aggregation as below
+join_nl = gpd.sjoin(trans,nl, how='left').drop(['index_right'], axis=1)
+# aggregate data
+cols = [x for x in join_nl.columns if x.startswith('nl')]
+agg = join_nl.groupby(['item'])[cols].sum().reset_index()
+join_nl = join_nl.drop(cols, axis=1).drop_duplicates().merge(agg, on='item')
 
-cols = [x for x in df.columns if x.startswith('pol') | x.startswith('nl') ]
-agg = df.groupby(['item'])[cols].sum().reset_index()
-
-df = df.drop(cols, axis=1).drop('geometry',axis=1).drop_duplicates().merge(agg, on='item')
-
+df = join.merge(join_nl)
 
 df_long = pd.wide_to_long(df, stubnames=['pol','nl'], i = ['item'], j='yearmonth').reset_index()
 
-df_long.to_csv(wd.parent/'data'/'merged_long.csv', index=False)
+df_long.to_csv(data_path/'merged_long.csv', index=False)
