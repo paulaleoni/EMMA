@@ -65,7 +65,7 @@ def get_load_tif(year, month):
         # get name of tif
         tif_file = re.sub('.tgz', '', os.path.basename(data_url)) + '.avg_rade9h.tif'
         # save dataframe in dictionary
-        tifs[n] = rxr.open_rasterio(f'/vsitar/vsigzip/{output_file}/{tif_file}', masked = True).rio.clip(geometries=Kenya.geometry,crs = Kenya.crs, from_disk=True, drop=True, all_touched=True).squeeze().to_dataframe(f'nl_{year}{month}').reset_index()
+        tifs[n] = rxr.open_rasterio(f'/vsitar/vsigzip/{output_file}/{tif_file}', masked = True).rio.clip(geometries=Kenya.geometry,crs = Kenya.crs, from_disk=True, drop=True, all_touched=True).squeeze().to_dataframe(f'nl{year}{month}').reset_index()
 
     # merge to one dataframe
     dfs = [tifs[x] for x in files_list]
@@ -103,11 +103,11 @@ if __name__ == "__main__":
     list_files = []
     for y in years:
         for m in months:
-            print(y,m) 
             try : 
                 dfym, lst = get_load_tif(year = y, month=m)
                 list_files.extend(lst)
                 df = pd.merge(df, dfym, on=['y','x'], how='outer')
+                print(y,m)
             except: continue 
             for file in os.listdir(folder_path):
                 os.remove(folder_path + file)
