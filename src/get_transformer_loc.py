@@ -1,16 +1,30 @@
 '''
+This file extracts, among other variables, the location of the transformers. The File 'Dasboard...' is an imperfect list of all lmcp transformers in Kenya. For the surveyed counties better data is available (2_raw_county datasets.zip), so these are used instead.
+
+
 Northings -> Longitude
 Eastings -> Latitude
+
+Point(lon, lat)
 
 '''
 
 from pathlib import Path
+import zipfile
 import pandas as pd
 import geopandas as gpd
 import re
 import pyproj
+from zipfile import ZipFile
 
 wd = Path.cwd()
+
+shp_file = wd.parent/'data'/'shp'/'Kenya.zip'
+
+# load shapefile in geopandas dataframe
+Kenya_regions = gpd.read_file(shp_file)
+
+Kenya = gpd.GeoDataFrame(index=[0],geometry=[Kenya_regions['geometry'].unary_union])
 
 imp_trans_file = wd.parent/'data'/'transformer'/'Dashboard Donor LMCP August 2020.csv'
 
@@ -80,18 +94,73 @@ imp_trans.loc[imp_trans['lat'].isnull(), 'lat'] = imp_trans.loc[imp_trans['lat']
 
 
 gdf = gpd.GeoDataFrame(imp_trans, geometry=gpd.points_from_xy(imp_trans.lat, imp_trans.lon))
+gdf.columns = gdf.columns.str.lower()
 
-
+'''
 import matplotlib.pyplot as plt
-shp_file = wd.parent/'data'/'shp'/'Kenya.zip'
-
-# load shapefile in geopandas dataframe
-Kenya_regions = gpd.read_file(shp_file)
-
-Kenya = gpd.GeoDataFrame(index=[0],geometry=[Kenya_regions['geometry'].unary_union])
 
 fig, ax = plt.subplots()
 Kenya.plot(ax=ax, facecolor='None', edgecolor='red')
 gdf.plot(ax = ax)
 
 #!!! check latitude, longitude
+'''
+
+### from survey shapefiles
+
+zip_path = wd.parent/'data'/'transformer'/'2_raw county datasets.zip'
+zip_shapes = ZipFile(zip_path)
+
+list_trans_shp = [x for x in zip_shapes.namelist() if ('transformer' in x.lower()) & (x.endswith('.shp'))]
+
+gdf_survey = gpd.GeoDataFrame(columns=['geometry'], geometry='geometry')
+for file in list_trans_shp:
+    dfx = gpd.read_file(f'{zip_path}!{file}')
+    dfx.columns = dfx.columns.str.lower()
+    gdf_survey = pd.concat([gdf_survey, dfx], ignore_index=True)
+    
+# keep relevant columns
+cols = ['geometry','county','ref_no','z_referenc','scheme_nam','item','project','sub_projec','projected_','actual_out','start_date','projected1']
+gdf_survey = gdf_survey[cols]
+
+# if item is nan, replace with 'z_referenc' or 'ref_no'
+gdf_survey.loc[gdf_survey['item'].isnull(),'item'] = gdf_survey.loc[gdf_survey['item'].isnull(),'z_referenc']
+gdf_survey.loc[gdf_survey['item'].isnull(),'item'] = gdf_survey.loc[gdf_survey['item'].isnull(),'ref_no']
+gdf_survey = gdf_survey.drop(['z_referenc','ref_no'], axis=1)
+
+# merge both datasets based on zref
+gdf_all = gdf.merge(gdf_survey, how='outer', on='item', suffixes=('', '_y')).drop_duplicates()
+
+
+def merge_columns(col1, col2, df, drop = True):
+    # replace col1 if nan by col2, drop col2 afterwards
+    df.loc[df[col1].isnull(),col1] = df.loc[df[col1].isnull(),col2]
+    if drop==True : df = df.drop(col2, axis=1)
+    return df
+
+gdf_all = merge_columns('program/project','project', gdf_all)
+gdf_all = merge_columns('sub project','sub_projec', gdf_all)
+gdf_all = merge_columns('sub project','scheme_nam', gdf_all)
+gdf_all = merge_columns('county','county_y', gdf_all)
+gdf_all = merge_columns('timelines','start_date', gdf_all)
+gdf_all = merge_columns('completion_date','projected1', gdf_all)
+gdf_all = merge_columns('geometry','geometry_y', gdf_all, drop=False)
+
+# if points close, set geometry to geometry_y (geometry_y should be better)
+distance = 0.001 # 0.001 deg = 111 m
+gdf_all['geom_within'] = gdf_all.apply(lambda row: row['geometry'].within(row['geometry_y'].buffer(distance)) if (row['geometry_y'] is not None) else False, axis=1)
+
+gdf_all['geometry'] = gdf_all.apply(lambda row: row['geometry_y'] if row['geom_within'] else row['geometry'], axis=1)
+
+gdf_all = gdf_all.drop(['geometry_y','geom_within'], axis=1)
+
+fig, ax = plt.subplots()
+Kenya.plot(ax=ax)
+gdf_all.geometry[0:13300].plot(ax=ax, color='red', markersize=1)
+
+
+# only keep locations that are within Kenya
+gdf_all = gdf_all.loc[gdf_all.within(Kenya.geometry[0])]
+
+# export to csv
+gdf_all.to_csv(wd.parent/'data'/'transformer'/'transformer_all_raw.csv', index=False)
