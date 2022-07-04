@@ -90,4 +90,4 @@ if __name__ == "__main__":
     join = join.drop(nl_cols,axis=1).drop_duplicates().merge(agg, on = 'index', how='left')
 
     # export
-    join.to_csv(wd.parent/'out'/'data'/'raster_merged.csv')
+    join.to_csv(wd.parent/'out'/'data'/'raster_merged.csv', index=False)
