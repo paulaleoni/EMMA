@@ -26,7 +26,7 @@ Kenya = Kenya[Kenya.county.isin(counties)]
 df = pd.read_csv(wd.parent/'out'/'data'/'dataset_all.csv')
 
 # prepare data
-df = df[df.pop_dens != 0] # drop grid cells with no population
+#df = df[df.pop_dens != 0] # drop grid cells with no population
 df = df[df.nl.notnull()] # first 3 months of 2012 no data for nightlight
 # group grid cells by
 # nothing if neither lmcp, nonlmcp, preexisting
@@ -58,11 +58,22 @@ for y in [2015]:
         Kenya.plot(ax=ax, facecolor='None', edgecolor='grey')
         ax.set_axis_off()
         plt.tight_layout()
-        fig.savefig(path_figure/f'{y}_{v}')
+        fig.savefig(path_figure/f'map_{y}_{v}')
 
+# plot map of groups
+data = df[df.yearmonth==201204]
+data = gpd.GeoDataFrame(data, geometry=data['geometry'].apply(wkt.loads))
+#data['group'] = pd.Categorical(data['group'])
+fig, ax = plt.subplots()
+data.plot(column='group', ax=ax, alpha=.7, legend=True)
+Kenya.plot(ax=ax, facecolor='None', edgecolor='grey')
+ax.set_axis_off()
+plt.tight_layout()
+fig.savefig(path_figure/'map_electricity.png')
 
 # time series of all groups
-ts_group = df.groupby(['yearmonth','group'])[['nl', 'pol']].median().reset_index()
+# drop grid cells with no population
+ts_group = df[df.pop_dens != 0].groupby(['yearmonth','group'])[['nl', 'pol']].median().reset_index()
 ts_group['yearmonth'] = pd.to_datetime(ts_group['yearmonth'], format='%Y%m')
 
 for x in ['nl','pol']:
