@@ -46,7 +46,7 @@ df_yearly = df.drop(['pol','nl','yearmonth'],axis=1).drop_duplicates().merge(agg
 gdf_yearly = gpd.GeoDataFrame(df_yearly, geometry=df_yearly['geometry'].apply(wkt.loads))
 
 # plot pop dens of 2015
-for y in ['2015']:
+for y in [2015]:
     data = gdf_yearly[gdf_yearly.year == y]
     for v in ['pop_dens','pol','nl']:
         vmin = data[[v]].min()[0]
