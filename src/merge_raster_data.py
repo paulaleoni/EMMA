@@ -49,7 +49,7 @@ if __name__ == "__main__":
     join_lines = join_lines.merge(agg, on = 'index', how='left').drop('index',axis=1)
 
     # rename types
-    join_lines = join_lines.rename(columns={'type_lmcp':'n_lmcp','type_nonlmcp':'n_lmcp','type_preexisting':'n_preexisting'})
+    join_lines = join_lines.rename(columns={'type_lmcp':'n_lmcp','type_nonlmcp':'n_nonlmcp','type_preexisting':'n_preexisting'})
 
     # delete files from memory
     del(pol)
@@ -78,7 +78,6 @@ if __name__ == "__main__":
     nl = gpd.GeoDataFrame(nl, geometry=gpd.points_from_xy(nl.x, nl.y)).drop(['x','y'], axis=1)
 
     nl = nl.clip(Kenya.geometry[0])
-
 
     join = gpd.sjoin(join_pop, nl, how='left').reset_index().drop(['index_right'], axis=1)
     
