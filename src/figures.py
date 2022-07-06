@@ -33,11 +33,11 @@ df = df[df.nl.notnull()] # first 3 months of 2012 no data for nightlight
 df['group'] = np.nan
 df.loc[(df.n_lmcp==0) & (df.n_nonlmcp==0) & (df.n_preexisting==0), 'group'] = 'no electricity'
 # #lmcp > #nonlmcp + #preexising
-df.loc[(df.n_lmcp >= df.n_nonlmcp) & (df.n_lmcp >=df.n_preexisting) & df.group.isnull(), 'group'] = 'lmcp'
+df.loc[(df.len_lmcp >= df.len_nonlmcp) & (df.len_lmcp >=df.len_preexisting) & df.group.isnull(), 'group'] = 'lmcp'
 # #nonlmcp > #lmcp + #preexising
-df.loc[(df.n_nonlmcp >= df.n_lmcp) & (df.n_nonlmcp >= df.n_preexisting) & df.group.isnull(), 'group'] = 'nonlmcp'
+df.loc[(df.len_nonlmcp >= df.len_lmcp) & (df.len_nonlmcp >= df.len_preexisting) & df.group.isnull(), 'group'] = 'nonlmcp'
 # #preexisting > #lmcp + #nonlmcp
-df.loc[(df.n_preexisting >= df.n_lmcp) & (df.n_preexisting >= df.n_nonlmcp) & df.group.isnull(), 'group'] = 'preexisting'
+df.loc[(df.len_preexisting >= df.len_lmcp) & (df.len_preexisting >= df.len_nonlmcp) & df.group.isnull(), 'group'] = 'preexisting'
 #gdf = gpd.GeoDataFrame(df, geometry=df['geometry'].apply(wkt.loads))
 
 agg_yearly = df.groupby(['index','year'])[['pol','nl']].mean().reset_index()
