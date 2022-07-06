@@ -56,4 +56,6 @@ if __name__ == "__main__":
     gdf[gdf['type'].isnull()]
     '''
 
+    gdf['line_length'] = gdf.length
+
     gdf.to_csv(wd.parent/'out'/'data'/'lines.csv', index=False)

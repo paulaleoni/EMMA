@@ -9,6 +9,7 @@ import pandas as pd
 import geopandas as gpd
 from shapely import wkt
 import gc
+import numpy as np
 
 
 if __name__ == "__main__":
@@ -31,20 +32,27 @@ if __name__ == "__main__":
     # get lines
     lines = pd.read_csv(wd.parent/'out'/'data'/'lines.csv')
     lines = gpd.GeoDataFrame(lines, geometry=lines['geometry'].apply(wkt.loads))
+    lines = lines.drop('county', axis=1)
 
-    join_lines = gpd.sjoin(pol, lines, how='left', predicate='contains')
+    join_lines = gpd.sjoin(pol, lines, how='left', predicate='intersects')
     join_lines = join_lines.reset_index().drop(['index_right'], axis=1)
 
     # get dummy variables of type
     join_lines = pd.get_dummies(join_lines, columns=['type'])
     
+    for t in ['lmcp','nonlmcp','preexisting']:
+        join_lines[f'len_{t}'] = join_lines.loc[join_lines[f'type_{t}'] == 1,'line_length']
+    
     # add up lines
     agg = join_lines.dissolve(by ='index', 
                     aggfunc={'type_lmcp':'sum',
                              'type_nonlmcp':'sum',
-                             'type_preexisting':'sum'}, as_index=False).drop('geometry',axis=1)
+                             'type_preexisting':'sum',
+                             'len_lmcp':'sum',
+                             'len_nonlmcp':'sum',
+                             'len_preexisting':'sum'}, as_index=False).drop('geometry',axis=1)
     
-    join_lines = join_lines.drop(['filename','type_nonlmcp','type_lmcp','type_preexisting'], axis=1).drop_duplicates()
+    join_lines = join_lines.drop(['filename','type_nonlmcp','type_lmcp','type_preexisting','len_lmcp','len_nonlmcp','len_preexisting', 'line_length'], axis=1).drop_duplicates()
 
     join_lines = join_lines.merge(agg, on = 'index', how='left').drop('index',axis=1)
 
@@ -63,7 +71,7 @@ if __name__ == "__main__":
     pop = gpd.GeoDataFrame(pop, geometry=pop['geometry'].apply(wkt.loads)).clip(Kenya.geometry[0])
 
     # merge
-    join_pop = gpd.sjoin(join_lines, pop, how='left', predicate='contains').reset_index().drop(['index_right'], axis=1)
+    join_pop = gpd.sjoin(join_lines, pop, how='left').reset_index().drop(['index_right'], axis=1)
     # aggeragte to grid level
     agg = join_pop.dissolve(by ='index', aggfunc={'pop_dens':'mean'},as_index=False).drop('geometry',axis=1)
     join_pop = join_pop.drop('pop_dens',axis=1).drop_duplicates().merge(agg, on = 'index', how='left').drop('index',axis=1)

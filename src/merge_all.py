@@ -94,7 +94,7 @@ if __name__ == "__main__":
  
     # merge raster data with county
     # this creates some duplicates since some grid cells cover more than one county, drop later based on shortest distance to transformer
-    df = raster.drop(columns='county').sjoin(Kenya, how='left').drop(columns=['index_right'], axis=1)
+    df = raster.sjoin(Kenya, how='left').drop(columns=['index_right'], axis=1)
 
     # load transformer data
     transformers = get_transformers()
@@ -131,7 +131,7 @@ if __name__ == "__main__":
     # merge consumption information
     merge1 = df.merge(cons, how= 'inner', left_on=['item','county'], right_on=['zrefrence','county'])
     merge2 = df.merge(cons, how= 'inner', left_on=['trans_no','county'], right_on=['tr_number','county'])
-    merged = pd.concat([merge1, merge2])    
+    merged = pd.concat([merge1, merge2])
     merged = merged.drop_duplicates(subset='index')
     
     df = df.merge(merged, how='left')
@@ -146,7 +146,7 @@ if __name__ == "__main__":
 
     # make it yearly 
     df_year = df_long.groupby(['index','year'])[['pol','nl']].mean().reset_index()
-    df_year = df_year.merge(df_long.drop(['pol','nl','yearmonth'],axis=1).drop_duplicates(), how='left', on='index')
+    df_year = df_year.merge(df_long.drop(['pol','nl','yearmonth'],axis=1).drop_duplicates(), how='left', on=['index','year'])
     # export to csv
     df_year.to_csv(wd.parent/'out'/'data'/'dataset_yearly.csv', index=False)
     
