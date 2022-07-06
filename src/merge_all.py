@@ -148,4 +148,5 @@ if __name__ == "__main__":
     df_year = df_long.groupby(['index','year'])[['pol','nl']].mean().reset_index()
     df_year = df_year.merge(df_long.drop(['pol','nl','yearmonth'],axis=1).drop_duplicates(), how='left', on='index')
     # export to csv
-    df_long.to_csv(wd.parent/'out'/'data'/'dataset_yearly.csv', index=False)
+    df_year.to_csv(wd.parent/'out'/'data'/'dataset_yearly.csv', index=False)
+    
