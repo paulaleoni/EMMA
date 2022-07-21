@@ -25,7 +25,7 @@ if __name__ == "__main__":
 
     # pollution data
     pol = pd.read_csv(wd.parent/'data'/'satellite'/'pollution_raw.csv')
-    pol = gpd.GeoDataFrame(pol, geometry=gpd.points_from_xy(pol.lon+ 0.005, pol.lat+ 0.005 )).clip(Kenya.geometry[0]).reset_index(drop=True) 
+    pol = gpd.GeoDataFrame(pol, geometry=gpd.points_from_xy(pol.lon, pol.lat)).clip(Kenya.geometry[0]).reset_index(drop=True) 
     # make polygon
     pol.geometry = pol.geometry.buffer(.005, cap_style = 3)
 
