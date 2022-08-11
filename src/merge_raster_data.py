@@ -9,7 +9,6 @@ import pandas as pd
 import geopandas as gpd
 from shapely import wkt
 import gc
-#import numpy as np
 
 
 if __name__ == "__main__":
@@ -18,9 +17,13 @@ if __name__ == "__main__":
     # load Kenya shapefile in geopandas dataframe
     shp_file = wd.parent/'data'/'shp'/'Kenya.zip'
     Kenya = gpd.read_file(shp_file)
-    #counties = ['Kakamega','Nakuru','Kericho','Baringo','Taita Taveta','Kitui']
-    #Kenya = Kenya[Kenya.NAME_1.isin(counties)]
+    Kenya = Kenya.rename(columns={'NAME_1':'county'})
+    # counties for analysis
+    counties = ['Kakamega','Kericho','Taita Taveta','Kitui']
+    Kenya = Kenya[Kenya.county.isin(counties)]
     Kenya = gpd.GeoDataFrame(index=[0],geometry=[Kenya['geometry'].unary_union])
+    # include grid cells close to borders
+    Kenya.geometry = Kenya.buffer(0.02)
 
     # pollution data
     pol = pd.read_csv(wd.parent/'data'/'satellite'/'pollution_raw.csv')

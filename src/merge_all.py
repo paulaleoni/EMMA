@@ -53,10 +53,7 @@ def get_transformers():
     trans_K = trans_K[list_col]
     gdf = pd.concat([gdf, trans_K], ignore_index=True)
 
-    # drop seemingly wrong transformers
-    drops = gdf[gdf.geometry.apply(lambda row: len(str(row.x)) > 20)].index
-    gdf = gdf.drop(drops)
-
+    
     # clean
     # if item is nan, replace with 'z_referenc' or 'ref_no'
     gdf = merge_columns('item','z_referenc', gdf)
@@ -84,7 +81,7 @@ if __name__ == "__main__":
     Kenya = gpd.read_file(shp_file)
     Kenya = Kenya[['NAME_1','geometry']]
     Kenya = Kenya.rename(columns={'NAME_1':'county'})
-    counties = ['Kakamega','Nakuru','Kericho','Baringo','Taita Taveta','Kitui']
+    counties = ['Kakamega','Kericho','Taita Taveta','Kitui']
     Kenya = Kenya[Kenya.county.isin(counties)]
     Kenya.county = Kenya.county.str.lower()
 
@@ -94,7 +91,7 @@ if __name__ == "__main__":
  
     # merge raster data with county
     # this creates some duplicates since some grid cells cover more than one county, drop later based on shortest distance to transformer
-    df = raster.sjoin(Kenya, how='left').drop(columns=['index_right'], axis=1)
+    df = raster#.sjoin(Kenya, how='left').drop(columns=['index_right'], axis=1)
 
     # load transformer data
     transformers = get_transformers()
@@ -106,9 +103,9 @@ if __name__ == "__main__":
 
     # find closest transformer for each grid cell
     for index, line in df.iterrows():
-        county = line['county']
+        #county = line['county']
         # consider only transformers in the same county to speed things up
-        trans = transformers[transformers['county'] == county]
+        trans = transformers#[transformers['county'] == county]
         # save potential transformers in dictionary
         dists = {}
         for i, tr in trans.iterrows():
@@ -122,11 +119,11 @@ if __name__ == "__main__":
     
     # merge transformer data to df
     transformers = transformers.rename(columns={'geometry':'geometry_transformer'})
-    df = df.merge(transformers, how='left', left_on=['trans_index','county'], right_on=[transformers.index,'county'])
+    df = df.merge(transformers, how='left', left_on=['trans_index'], right_on=[transformers.index])
 
     # drop duplicates based on which county has closest transformer
-    index_to_keep = df.groupby('index')['dist_tr'].idxmin().dropna().astype(int).tolist()
-    df = df.loc[index_to_keep,]
+    #index_to_keep = df.groupby('index')['dist_tr'].idxmin().dropna().astype(int).tolist()
+    #df = df.loc[index_to_keep,]
 
     # merge consumption information
     merge1 = df.merge(cons, how= 'inner', left_on=['item','county'], right_on=['zrefrence','county'])
@@ -148,5 +145,4 @@ if __name__ == "__main__":
     df_year = df_long.groupby(['index','year'])[['pol','nl']].mean().reset_index()
     df_year = df_year.merge(df_long.drop(['pol','nl','yearmonth'],axis=1).drop_duplicates(), how='left', on=['index','year'])
     # export to csv
-    df_year.to_csv(wd.parent/'out'/'data'/'dataset_yearly.csv', index=False)
-    
+    df_year.to_csv(wd.parent/'out'/'data'/'dataset_yearly.csv', index=False)    
