@@ -34,7 +34,7 @@ df.loc[(df.len_preexisting >= df.len_lmcp) & (df.len_preexisting >= df.len_nonlm
 
 # https://stackoverflow.com/questions/54466196/descriptive-statistics-in-python-with-pandas-with-std-in-parentheses
 idx = pd.IndexSlice
-years = [x for x in range(2014,2020+1)]
+years = [x for x in range(2012,2020+1)]
 df_desc = (df[df.year.isin(years)]).groupby(['year'])[['nl','pol','pop_dens']].describe()
 
 df_desc = df_desc.loc[idx[:],idx[:,["mean", "std"]]].T
@@ -65,7 +65,7 @@ tab_counties.loc['Total'] = sum(tab_counties.No)
 
 with open(path_stats/'tab_counties.tex','w') as tf:
     tf.write(tab_counties.style.to_latex(position='H', caption='number of transformers per county',  label='tab:counties', hrules=True, column_format='lc',environment='longtable'))
-
+##########################
 # how many grid cells per transformer
 trans_ncells = df[(df.year==2020)].groupby(['geometry_transformer','county'])['index'].nunique().rename('n_index')#.describe()
 
