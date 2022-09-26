@@ -109,13 +109,14 @@ if __name__ == "__main__":
         # save potential transformers in dictionary
         dists = {}
         for i, tr in trans.iterrows():
-            dist = line['geometry'].distance(tr['geometry'])
+            dist = line['geometry'].boundary.distance(tr['geometry'])
             dists[tr.name] = dist
         # find transformer with minimum distance and save distance and transformer
         mindist = min(dists.values())
         res = [k for k, v in dists.items() if v==mindist][0]
         df.loc[index,'dist_tr'] = mindist
         df.loc[index,'trans_index'] = res
+        print(index)
     
     # merge transformer data to df
     transformers = transformers.rename(columns={'geometry':'geometry_transformer'})

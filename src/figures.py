@@ -66,16 +66,16 @@ Kenya.plot(ax=ax, facecolor='None', edgecolor='black', alpha=.7)
 for x, y, label in zip(Kenya.centroid.x, Kenya.centroid.y, Kenya.county):
     ax.annotate(label, xy=(x, y), xytext=(7, 0), textcoords="offset points", fontweight="bold")
 ax.set_axis_off()
-fig.savefig(path_figure/f'map_Kenya',bbox_inches='tight',pad_inches = 0)
+fig.savefig(path_figure/f'map_Kenya',bbox_inches='tight',pad_inches = 0,dpi=200)
 
 # plot transformer locations
 fig, ax = plt.subplots()
 Kenya.plot(ax=ax, facecolor='None', edgecolor='grey', alpha=.7)
-gdf_trans.plot(ax=ax, color='black', markersize=1, label='transformer')
+gdf_trans.plot(ax=ax, color='black', markersize=1, label='transformer', marker=".")
 ax.set_axis_off()
 plt.tight_layout()
 plt.legend()
-fig.savefig(path_figure/f'map_Transformers',bbox_inches='tight',pad_inches = 0)
+fig.savefig(path_figure/f'map_Transformers',bbox_inches='tight',pad_inches = 0,dpi=200)
 
 # plot pop dens of 2015
 data = gdf_yearly[gdf_yearly.year == 2015]
@@ -89,7 +89,7 @@ data.plot(column=v, ax=ax, alpha=.7, cmap='PuBuGn', norm=divnorm, legend=True)
 Kenya.plot(ax=ax, facecolor='None', edgecolor='grey')
 ax.set_axis_off()
 plt.tight_layout()
-fig.savefig(path_figure/f'map_2015_pop_dens',bbox_inches='tight',pad_inches = 0)
+fig.savefig(path_figure/f'map_2015_pop_dens',bbox_inches='tight',pad_inches = 0,dpi=200)
 
 # plot nightlight and pollution
 years = [2015, 2020]

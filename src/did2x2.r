@@ -180,7 +180,20 @@ etable(rfs,
 
 #### alternative treatment definition ####
 
-df_alt_treat <- 
+df_alt_treat <- df %>% filter(year %in% c(2015,2020)) %>%
+  mutate(lmcp = ifelse(n_lmcp > 0, 1,
+                       ifelse(group=="no electricity",0,NA)),
+         post = ifelse(year==2020,1,0))
+
+
+did_alt_treat <- feols(fml = log(pol) ~ 1 | index + year | nl ~ 1 + i(post,lmcp,0), 
+                      data=df_alt_treat, vcov=vcov_conley(lat='lat',lon='lon'))
+
+etable(did_alt_treat$iv_first_stage$nl, did_alt_treat,
+       headers=c('first stage','second stage'),
+       placement= 'H', adjustbox = NULL, fit_format = "$\\widehat{__var__}$",se.row=TRUE,
+       title = 'alternative treatment definition: any lmcp vs no electricity',
+       file=file.path(path_results, 'did_alt_treat.tex'),replace = TRUE)
 
 
 #### change in pollution ####
