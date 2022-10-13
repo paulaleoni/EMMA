@@ -80,7 +80,6 @@ df_panel <- df_panel %>%  mutate(yearquarter = paste0(year(yearquarter),
 
 #df_panel  %>% group_by(date_first_vend_prepaid) %>% summarise(n())
 df_panel %>% select(index, date_first_vend_prepaid) %>% distinct() %>% group_by(date_first_vend_prepaid) %>% summarise(n())
-
 #df_panel <- df_panel %>% filter(date_first_vend_prepaid >= 2016)
 
 # need to aggregate data to quarterly level
@@ -103,14 +102,14 @@ df_first_vend <- df_panel %>%
   mutate(time_to_treatment = yearquarter - date_first_vend_prepaid) 
 
 max_treat = max(df_first_vend$date_first_vend_prepaid,na.rm=TRUE)
-#df_first_vend <- df_first_vend %>% 
-  #mutate(time_to_treatment = ifelse(date_first_vend_prepaid >= max_treat, 100000, time_to_treatment))
+df_first_vend <- df_first_vend %>% 
+  mutate(time_to_treatment = ifelse(date_first_vend_prepaid >= max_treat, 100000, time_to_treatment))
 
-staggered_first_vend <- feols(fml = log(pol) ~ 1| index + yearquarter | nl ~ i(time_to_treatment,ref = c(-.25, 7)), 
+staggered_first_vend <- feols(fml = log(pol) ~ 1| index + yearquarter | nl ~ i(time_to_treatment,ref = c(-.25, 100000)), 
                               data=df_first_vend, 
                               vcov=vcov_conley(lat='lat',lon='lon'))
 
-staggered_rf <- feols(fml = log(pol) ~ i(time_to_treatment,ref = c(-.25, 7))| index + yearquarter , 
+staggered_rf <- feols(fml = log(pol) ~ i(time_to_treatment,ref = c(-.25, 100000))| index + yearquarter , 
                               data=df_first_vend, 
                               vcov=vcov_conley(lat='lat',lon='lon'))
 ######################
@@ -173,12 +172,12 @@ staggered_first_vend$coeftable
 
 #df_first_vend[is.na(df_first_vend$date_first_vend_prepaid) & df_first_vend$group=='preexisting','date_first_vend_prepaid'] = 0
 sunab_first_vend <- feols(fml = log(pol)  ~ 1 |index + yearquarter| nl~ 
-                            sunab(cohort = date_first_vend_prepaid,period=yearquarter, ref.p = c(0, round(.F))), 
+                            sunab(cohort = date_first_vend_prepaid,period=yearquarter, ref.p = c(-1)), 
                           data=df_first_vend %>% drop_na(date_first_vend_prepaid),
                           #vcov=vcov_conley(lat="lat",lon="lon")
                           )
 
-sunab_rf <- feols(fml = log(pol)~ sunab(cohort = date_first_vend_prepaid,period=yearquarter, ref.p = c(0, round(.F)))|
+sunab_rf <- feols(fml = log(pol)~ sunab(cohort = date_first_vend_prepaid,period=yearquarter, ref.p = c(-1))|
                     index + yearquarter, 
                           data=df_first_vend %>% drop_na(date_first_vend_prepaid),
                           #vcov=vcov_conley(lat="lat",lon="lon")
@@ -380,7 +379,7 @@ ggplot(estimates,aes(time, coef, shape=specification, alpha=specification)) +
   #xlim(-6,7) + 
   theme(text = element_text(size=6), legend.position = c(0.5,0.9), legend.direction = "horizontal")
   
-ggsave(file.path(path_figures, "event_study_estimators.pdf"), dpi = 600)
+ggsave(file.path(path_figures, "event_study_estimators.png"), dpi = 600)
 
 ggplot(estimates_rf,aes(time, coef, color=specification)) + 
   geom_hline(yintercept=0, color="grey") +
@@ -412,17 +411,17 @@ ggsave(file.path(path_figures, "trend_first_vend.png"))
 #### export results ####
 
 
-etable(sunab_first_vend, staggered_first_vend,cs_first_vend, did_2x2_first_vend,
+etable(cs_first_vend, sunab_first_vend, staggered_first_vend,did_2x2_first_vend,
        vcov = vcov_conley(lat="lat",lon="lon"),
        fitstat = c("n","ar2","f.stat","ivf1.stat"),
        se.row=TRUE,
-       headers = c('Sun & Abraham',
+       headers = c("Callaway & Sant'Anna",
+                   'Sun & Abraham',
                    'dynamic TWFE',
-                   "C & S'A - first attempt",
                    " 2x2 did"),
-       placement= 'H', adjustbox = NULL, fit_format = "$\\widehat{__var__}$",
-       dict = c("resest", pred="$\\widehat{nl}$"),
-       title = 'treat: first vending at transformer level',
+       placement= 'H', adjustbox = TRUE, fit_format = "$\\widehat{__var__}$",
+       dict = c("resest", pred="$\\widehat{nl}$"),label="tab:estimates",
+       title = 'results of second stage',
        file=file.path(path_results, 'treat_first_vend.tex'),replace = TRUE)
 
 
@@ -449,8 +448,10 @@ summary(staggered_first_vend$iv_first_stage$nl)
 etable(staggered_first_vend$iv_first_stage$nl, agg=c("ATT" = "(time_to_treatment)(::)(-?[[:digit:]])+?"))
 
 
-aggregate(sunab_first_vend$iv_first_stage$nl,  agg=c("ATT" = "(year.*er)::(-?[[:digit:]]+?):(.*)"))
-etable(sunab_first_vend$iv_first_stage$nl,  agg=c("ATT" = "(.)*"))
+aggregate(sunab_first_vend$iv_first_stage$nl,  agg=c("ATT" = "att"),
+          vcov = vcov_conley(lat="lat",lon="lon"))
+summary(sunab_first_vend$iv_first_stage$nl,  agg=c("ATT" = "(.)*"))
 summary(sunab_first_vend$iv_first_stage$nl, agg="(yearquarter)")
 
+aggte(out, type='simple', alp = 0.025)
 
