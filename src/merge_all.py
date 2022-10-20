@@ -2,7 +2,8 @@
 merge raster data with transformer and consumption information
 
 output:
-dataset_all.csv
+dataset_month.csv
+dataset_quarter.csv
 dataset_yearly.csv
 '''
 
@@ -16,7 +17,9 @@ import numpy as np
 from shapely import wkt
 
 def merge_columns(col1, col2, df, drop = True):
-    # replace col1 if nan by col2, drop col2 afterwards
+    ''' 
+    replace col1 if nan by col2, drop col2 afterwards
+    '''
     df.loc[df[col1].isnull(),col1] = df.loc[df[col1].isnull(),col2]
     if drop==True : df = df.drop(col2, axis=1)
     return df
@@ -71,6 +74,24 @@ def get_transformers():
     gdf['type'] = gdf['filename'].apply(lambda row: re.search(types, row, re.IGNORECASE).groups()[0] if type(row) == str else np.nan)   
 
     return gdf
+
+def quarters(yearmonth):
+    '''
+    get quarter of month
+    '''
+    try:
+        yearmonth = str(yearmonth)
+        year = yearmonth[:4]
+        month = int(yearmonth[-2:])
+        if month <= 3: quarter = 0
+        elif month <= 6: quarter = 0.25
+        elif month <= 9: quarter = 0.5
+        elif month <= 12: quarter = 0.75
+        else: np.nan
+        yearquarter = int(year) + quarter
+        return yearquarter  
+    except: return np.nan
+          
         
 
 if __name__ == "__main__":
@@ -86,12 +107,12 @@ if __name__ == "__main__":
     Kenya.county = Kenya.county.str.lower()
 
     # load raster data
-    raster = pd.read_csv(wd.parent/'out'/'data'/'raster_merged.csv') 
-    raster = gpd.GeoDataFrame(raster, geometry=raster['geometry'].apply(wkt.loads), crs= Kenya.crs)  
- 
+    df = pd.read_csv(wd.parent/'out'/'data'/'raster_merged.csv') 
+    df = gpd.GeoDataFrame(df, geometry=df['geometry'].apply(wkt.loads), crs= Kenya.crs)  
+    
     # merge raster data with county
     # this creates some duplicates since some grid cells cover more than one county, drop later based on shortest distance to transformer
-    df = raster#.sjoin(Kenya, how='left').drop(columns=['index_right'], axis=1)
+    #df = raster#.sjoin(Kenya, how='left').drop(columns=['index_right'], axis=1)
 
     # load transformer data
     transformers = get_transformers()
@@ -139,11 +160,22 @@ if __name__ == "__main__":
 
     df_long['year'] = df_long['yearmonth'].astype(str).apply(lambda row: row[0:4])
 
-    # export to csv
-    df_long.to_csv(wd.parent/'out'/'data'/'dataset_all.csv', index=False)
-
+    # bring it to quaterly level
+    df_long['yearquarter'] = df_long['yearmonth'].apply(quarters)
+    df_long['date_first_vend_prepaid'] = df_long['date_first_vend_prepaid'].apply(quarters)
+    
     # make it yearly 
     df_year = df_long.groupby(['index','year'])[['pol','nl']].mean().reset_index()
-    df_year = df_year.merge(df_long.drop(['pol','nl','yearmonth'],axis=1).drop_duplicates(), how='left', on=['index','year'])
+    df_year = df_year.merge(df_long.drop(['pol','nl','yearmonth','yearquarter'],axis=1).drop_duplicates(), how='left', on=['index','year'])
+
+    # filter data - exclude cells with negative population density
+    df_long = df_long[(df_long.pop_dens > 0)]
+        
+    df_quarterly = df_long.groupby(['index','yearquarter'])[['pol','nl']].mean().reset_index()
+    df_long_quarterly = df_quarterly.merge(df_long.drop(['pol','nl', "yearmonth"],axis=1).drop_duplicates(), how='left', on=['index','yearquarter'])
+         
+
     # export to csv
+    df_long.to_csv(wd.parent/'out'/'data'/'dataset_month.csv', index=False)
+    df_long_quarterly.to_csv(wd.parent/'out'/'data'/'dataset_quarter.csv', index=False)
     df_year.to_csv(wd.parent/'out'/'data'/'dataset_yearly.csv', index=False)    
