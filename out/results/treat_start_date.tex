@@ -1,0 +1,32 @@
+
+\begin{table}[H]
+   \caption{treat: start date at transformer level}
+   \centering
+   \begin{tabular}{lcccc}
+      \tabularnewline \midrule \midrule
+      Dependent Variable: & \multicolumn{4}{c}{log(pol)}\\
+       & Sun \& Abraham & TWFE & C \& S'A - first attempt & 2x2 did \\ 
+      Model:          & (1)      & (2)      & (3)           & (4)\\  
+      \midrule
+      \emph{Variables}\\
+      $\widehat{nl}$  & 0.1566   & 0.4042   &               & -8.081\\   
+                      & (0.1342) & (0.3412) &               & (46.70)\\   
+      pred            &          &          & 0.0577$^{**}$ &   \\   
+                      &          &          & (0.0249)      &   \\   
+      \midrule
+      \emph{Fixed-effects}\\
+      index           & Yes      & Yes      & Yes           & Yes\\  
+      yearquarter     & Yes      & Yes      & Yes           & \\  
+      year            &          &          &               & Yes\\  
+      \midrule
+      \emph{Fit statistics}\\
+      Observations    & 2,862    & 2,862    & 1,564         & 212\\  
+      R$^2$           & 0.93445  & 0.82568  & 0.95033       & -130.11\\  
+      Within R$^2$    & -0.44197 & -2.8348  & 0.00696       & -5,581.7\\  
+      \midrule \midrule
+      \multicolumn{5}{l}{\emph{Conley (2.2km) standard-errors in parentheses}}\\
+      \multicolumn{5}{l}{\emph{Signif. Codes: ***: 0.01, **: 0.05, *: 0.1}}\\
+   \end{tabular}
+\end{table}
+
+
