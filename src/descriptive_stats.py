@@ -15,7 +15,7 @@ df = pd.read_csv(wd.parent/'out'/'data'/'dataset_yearly.csv')
 df_quarter = pd.read_csv(wd.parent/'out'/'data'/'dataset_quarter.csv')
 
 # prepare data
-filter = 'date_first_vend_prepaid.notnull() & nl.notnull() & date_first_vend_prepaid >= 2015 & dist_tr <= 0.02 & pop_dens >0'
+filter = 'date_first_vend_prepaid.notnull() & nl.notnull() & dist_tr <= 0.02 & pop_dens >0'
 
 df.query(filter, inplace=True)
 df_quarter.query(filter, inplace=True)

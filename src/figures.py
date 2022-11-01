@@ -4,6 +4,7 @@
 - time series of nightlight and pollution
 '''
 
+from formatter import NullFormatter
 from json import load
 from pathlib import Path
 import pandas as pd
@@ -24,8 +25,6 @@ def load_data(wd):
     df_yearly = pd.read_csv(wd.parent/'out'/'data'/'dataset_yearly.csv')
     df = pd.read_csv(wd.parent/'out'/'data'/'dataset_month.csv')
     counties = df[df.date_first_vend_prepaid.notnull()].county.unique().tolist()
-    df = df[df.county.isin(counties)]
-    df_yearly = df_yearly[df_yearly.county.isin(counties)]
     return df, df_yearly, counties
 
 def load_shp(wd, counties):
@@ -65,7 +64,7 @@ def plot_trans(gdf_trans, Kenya, path_figure):
     plt.legend()
     fig.savefig(path_figure/f'map_Transformers',bbox_inches='tight',pad_inches = 0,dpi=200)  
 
-def plot_population(df_yearly, path_figure, cmap='PuBuGn', save=True):
+def plot_population(df_yearly, Kenya, path_figure, cmap='PuBuGn', save=True):
     gdf_yearly = gpd.GeoDataFrame(df_yearly, geometry=df_yearly['geometry'].apply(wkt.loads))
     # plot pop dens of 2015
     data = gdf_yearly[gdf_yearly.year == 2015]
@@ -82,7 +81,7 @@ def plot_population(df_yearly, path_figure, cmap='PuBuGn', save=True):
     if save==True:
         fig.savefig(path_figure/f'map_2015_pop_dens',bbox_inches='tight',pad_inches = 0,dpi=200)
 
-def plot_pol_nl(df_yearly, path_figure, cmap='PuBuGn', save=True):
+def plot_pol_nl(df_yearly, Kenya, path_figure, cmap='PuBuGn', save=True):
     gdf_yearly = gpd.GeoDataFrame(df_yearly, geometry=df_yearly['geometry'].apply(wkt.loads))
     # plot nightlight and pollution
     years = [2015, 2020]
@@ -103,20 +102,24 @@ def plot_pol_nl(df_yearly, path_figure, cmap='PuBuGn', save=True):
         if save==True:
             fig.savefig(path_figure/f'map_{v}',bbox_inches='tight',pad_inches = 0, dpi=200)
 
-def plot_ts(df, var):
+def plot_ts(df, var=str, by=str):
     # prepare data
-    filter = 'date_first_vend_prepaid.notnull() & nl.notnull() & date_first_vend_prepaid >= 2015 & dist_tr <= 0.02'
-
+    filter = 'date_first_vend_prepaid.notnull() & nl.notnull() & dist_tr <= 0.02'
     df.query(filter, inplace=True)
-    #df = df[df.pop_dens > 0] # drop grid cells with no population
-    #df = df[df.nl.notnull()] # first 3 months of 2012 no data for nightlight
-    #df = df[df.dist_tr <= 0.02] # drop grid cells far away from transformer
-    ts = df.groupby(['yearmonth'])[var].mean().reset_index()
-    ts['yearmonth'] = pd.to_datetime(ts['yearmonth'], format='%Y%m')
+    df['yearmonth'] = pd.to_datetime(df['yearmonth'], format='%Y%m')
+    west = ["kakamega", "kericho"]
+    df["direction"] = df.apply(lambda row: "west" if row.county in west else "south", axis=1)
     fig, ax = plt.subplots()    
-    #ax.set_prop_cycle(color=cls)
-    ax.plot('yearmonth',var, data=ts, color="grey")
-    #ax.legend()
+    ax.set_prop_cycle(linestyle=["solid", "dashed"], color=["darkgrey", "grey"])
+    if by is not None:
+        ts = df.groupby(['yearmonth',by])[var].mean().reset_index()
+        for c in ts[by].unique():
+            data = ts[ts[by]==c]
+            ax.plot('yearmonth',var, data=data, label=c)
+            ax.legend()
+    else: 
+        data = df.groupby(['yearmonth'])[var].mean().reset_index()
+        ax.plot('yearmonth',var, data=data, color="darkgrey")
     plt.tight_layout()
     fig.savefig(path_figure/f'ts_{var}_mean.png')
 
@@ -128,11 +131,11 @@ if __name__ == "__main__":
     #
     plot_Kenya(Kenya, Kenya_all, path_figure)
     plot_trans(gdf_trans, Kenya, path_figure)
-    plot_population(df_yearly, path_figure, cmap="plasma", save=True)
-    plot_pol_nl(df_yearly, path_figure, cmap="plasma", save=True)
+    plot_population(df_yearly, Kenya, path_figure, cmap="plasma", save=True)
+    plot_pol_nl(df_yearly, Kenya, path_figure, cmap="plasma", save=True)
     #
-    plot_ts(df, "pol")
-    plot_ts(df, "nl")
+    plot_ts(df, "pol", by="direction")
+    plot_ts(df, "nl", by=None)
 
 
 '''

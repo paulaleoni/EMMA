@@ -2,7 +2,7 @@
 
 library(tidyverse)
 library(fixest)
-library(lubridate)
+#library(lubridate)
 library(did)
 
 getCurrentFileLocation <-  function()
@@ -38,6 +38,10 @@ source(file.path(wd, "helper-conley.R"))
 df_path <- file.path(wd.parent,'out','data','dataset_quarter.csv')
 df <- read.csv(df_path)
 
+
+
+#df <- df %>% mutate(quarter = format(round(yearquarter,2), nsmall=2) %>% substring(6))
+
 for (dist in c(.02,.01)) {
   #dist=.02
 # keep only those whose distance to transformer is reasonable #0.01 deg = 1111 m
@@ -49,27 +53,27 @@ df_panel <- df %>% filter(dist_tr <= dist, !is.na(nl))
 df_panel %>% select(index, date_first_vend_prepaid) %>% distinct() %>% group_by(date_first_vend_prepaid) %>% summarise(n())
 #df_panel <- df_panel %>% filter(date_first_vend_prepaid >= 2016)
 
+cluster_first = "geometry_transformer" # "geometry_transformer"
 
 ### based on first vend
 
 # define treatment
 
 df_first_vend <- df_panel %>% 
-  mutate(time_to_treatment = yearquarter - date_first_vend_prepaid) 
+  mutate(time_to_treatment = (yearquarter - date_first_vend_prepaid)*4) 
 
 max_treat = max(df_first_vend$date_first_vend_prepaid,na.rm=TRUE)
 df_first_vend <- df_first_vend %>% 
-  mutate(time_to_treatment = ifelse(date_first_vend_prepaid >= max_treat, -100000, time_to_treatment))
+  mutate(time_to_treatment = ifelse(date_first_vend_prepaid >= max_treat, -100000, time_to_treatment)) %>%
+  filter(yearquarter < max_treat)
 
-staggered_first_vend <- feols(fml = log(pol) ~ 1| index + yearquarter | nl ~ i(time_to_treatment,ref = c(-.25, 100000)), 
-                              data=df_first_vend, 
-                              #vcov=vcov_conley(lat='lat',lon='lon'),
-                              vcov=vcov_cluster("geometry_transformer"))
+staggered_first_vend <- feols(fml = log(pol) ~ 1| index + yearquarter | nl ~ i(time_to_treatment, ref = c(-1,-100000)), 
+                              data=df_first_vend,
+                              vcov=vcov_cluster(cluster_first))
 
-staggered_rf <- feols(fml = log(pol) ~ i(time_to_treatment,ref = c(-.25, -100000))| index + yearquarter , 
-                              data=df_first_vend, 
-                              #vcov=vcov_conley(lat='lat',lon='lon'),
-                              vcov=vcov_cluster("geometry_transformer"))
+staggered_rf <- feols(fml = log(pol) ~ i(time_to_treatment, ref = c(-1,-100000))| index + yearquarter , 
+                              data=df_first_vend,
+                              vcov=vcov_cluster(cluster_first))
 ######################
 
 #data <- df_first_vend %>% drop_na(time_to_treatment) %>% ungroup()
@@ -122,23 +126,20 @@ staggered_rf <- feols(fml = log(pol) ~ i(time_to_treatment,ref = c(-.25, -100000
 
 #df_first_vend[is.na(df_first_vend$date_first_vend_prepaid) & df_first_vend$group=='preexisting','date_first_vend_prepaid'] = 0
 sunab_first_vend <- feols(fml = log(pol)  ~ 1 |index + yearquarter| nl~ 
-                            sunab(cohort = date_first_vend_prepaid,period=yearquarter, ref.p = c(-1)), 
+                            sunab(cohort = date_first_vend_prepaid, period=time_to_treatment, ref.p = c(-1,.L)), 
                           data=df_first_vend %>% drop_na(date_first_vend_prepaid),
-                          #vcov=vcov_conley(lat="lat",lon="lon"),
-                          vcov=vcov_cluster("geometry_transformer")
+                          vcov=vcov_cluster(cluster_first)
                           )
 
-sunab_rf <- feols(fml = log(pol)~ sunab(cohort = date_first_vend_prepaid,period=yearquarter, ref.p = c(-1))|
+sunab_rf <- feols(fml = log(pol)~ sunab(cohort = date_first_vend_prepaid, period=time_to_treatment, ref.p = c(-1,.L))|
                     index + yearquarter, 
                           data=df_first_vend %>% drop_na(date_first_vend_prepaid),
-                          #vcov=vcov_conley(lat="lat",lon="lon"),
-                  vcov=vcov_cluster("geometry_transformer")
+                  vcov=vcov_cluster(cluster_first)
                   )
 
 #sunab_first_vend$coeftable[,2] <- vcov_conley(sunab_first_vend)
 ## 2x2 did
-df_2x2 <- df_panel %>% mutate(year = substr(as.character(yearquarter),1,4) %>% as.numeric())
-df_2x2 <- df_2x2 %>% group_by(index, year) %>% summarise(nl=mean(nl),
+df_2x2 <- df_panel %>% group_by(index, year) %>% summarise(nl=mean(nl),
                                                         pol = mean(pol),
                                                         date_first_vend_prepaid = mean(date_first_vend_prepaid),
                                                         #start_date = mean(start_date),
@@ -173,13 +174,10 @@ df_cs_first_vend['did_group'] <- df_cs_first_vend$date_first_vend_prepaid
 
 df_cs_first_vend <- df_cs_first_vend %>% drop_na(did_group)
 
-
 df_cs_first_vend <- df_cs_first_vend %>% mutate(lnpol= log(pol))
 
 #df_cs_first_vend <- df_cs_first_vend %>% mutate(nl_dem=demean(nl,as.matrix(fe)))
 
-
-#df_cs %>% select(index, yearquarter, nl, lnpol, did_group) %>% arrange(index, yearquarter)
 
 out <- att_gt(yname = "nl",
               gname = "did_group",
@@ -191,28 +189,24 @@ out <- att_gt(yname = "nl",
               control_group = 'notyettreated', 
               anticipation = 0,
               bstrap=TRUE,
-              clustervars="geometry_transformer"
+              clustervars=cluster_first
 )
 
 out_rf <- att_gt(yname = "lnpol",
               gname = "did_group",
               idname = "index",
               tname = "yearquarter",
-              xformla = ~1 ,
+              xformla = ~ 1 ,
               data = df_cs_first_vend ,
               est_method = "dr", #dr
               control_group = 'notyettreated', 
               anticipation = 0,
               bstrap=TRUE,
-              clustervars="geometry_transformer"
+              clustervars=cluster_first
 )
-#summary(out)
 
-#aggte(out, type='group')
-#aggte(out, type='dynamic')
-#agg.simple <- aggte(out, type='simple')
 
-# try to get fitted values - rethink about this
+# construct fitted values
 atts <- tibble(did_group=out$group, yearquarter = out$t, att = out$att)
 
 
@@ -221,16 +215,16 @@ cs_coefs <-  df_cs_first_vend %>% group_by(yearquarter, did_group) %>%
 
 
 predictions <- df_cs_first_vend %>% drop_na(did_group) %>%
-  left_join(cs_coefs) %>% mutate(res = nl-pred) %>% drop_na(pred) #%>% summary()
+  left_join(cs_coefs) %>% drop_na(pred) %>% mutate(res = nl-pred) 
 
 
-
+# estimate second stage
 cs_first_vend <- feols(log(pol) ~ 1 + pred | index + yearquarter,
             data = predictions,
             vcov=vcov_conley(lat="lat",lon="lon"))
 
 
-
+# adjust SE to account for IV
 timeid <- predictions %>% ungroup() %>% select(yearquarter)
 panelid <-predictions %>% ungroup() %>% select(index)
 
@@ -268,8 +262,8 @@ cs_first_vend$coeftable[,2] <- sqrt(diag(ses$Spatial_HAC))
 cs_dyn <- aggte(out, type='dynamic')
 cs_dyn_rf <- aggte(out_rf, type='dynamic')
 
-estimates <- tibble(time = cs_dyn$egt, coef = cs_dyn$att.egt, se = cs_dyn$se.egt, specification = "CS")
-estimates_rf <- tibble(time = cs_dyn_rf$egt, coef = cs_dyn_rf$att.egt, se = cs_dyn_rf$se.egt, specification = "CS")
+estimates <- tibble(time = cs_dyn$egt *4, coef = cs_dyn$att.egt, se = cs_dyn$se.egt, specification = "CS")
+estimates_rf <- tibble(time = cs_dyn_rf$egt*4, coef = cs_dyn_rf$att.egt, se = cs_dyn_rf$se.egt, specification = "CS")
 
 stag_coefs <- staggered_first_vend$iv_first_stage$nl$coefficients
 stag_coefs_rf <- staggered_rf$coefficients
@@ -289,10 +283,10 @@ stag_est$time <- gsub("time_to_treatment::","",stag_est$time) %>% as.numeric()
 stag_est_rf$time <- gsub("time_to_treatment::","",stag_est_rf$time) %>% as.numeric()
 
 
-sunab_est <- aggregate(sunab_first_vend$iv_first_stage$nl, "(year.*er)::(-?[[:digit:]]?.?[[:digit:]]+)",
+sunab_est <- aggregate(sunab_first_vend$iv_first_stage$nl, "(ti.*nt)::(-?[[:digit:]]+)",
                        #vcov = vcov_conley(lat="lat",lon="lon")
                        ) 
-sunab_est_rf <- aggregate(sunab_rf, "(year.*er)::(-?[[:digit:]]?.?[[:digit:]]+)",
+sunab_est_rf <- aggregate(sunab_rf, "(ti.*nt)::(-?[[:digit:]]+)",
                        #vcov = vcov_conley(lat="lat",lon="lon")
                        )
 
@@ -304,8 +298,8 @@ sunab_est <- tibble(time = row.names(sunab_est), specification = "SA", coef = su
                     )
 sunab_est_rf <- tibble(time = row.names(sunab_est_rf), specification = "SA", coef = sunab_est_rf[,1], se = sunab_est_rf[,2])
 
-sunab_est$time <- gsub("yearquarter::","",sunab_est$time) %>% as.numeric()
-sunab_est_rf$time <- gsub("yearquarter::","",sunab_est_rf$time) %>% as.numeric()
+sunab_est$time <- gsub("time_to_treatment::","",sunab_est$time) %>% as.numeric()
+sunab_est_rf$time <- gsub("time_to_treatment::","",sunab_est_rf$time) %>% as.numeric()
 
 
 alpha = 0.05
@@ -316,24 +310,26 @@ estimates_rf <- estimates_rf %>% rbind(stag_est_rf) %>% rbind(sunab_est_rf) %>% 
                                                                                        ub = coef + 1.96 * se )
 
 
-pd <- position_dodge(width=0.15)
+pd <- position_dodge(width=0.5)
 
-ggplot(estimates,aes(time, coef, shape=specification, color=specification)) + 
+first <- ggplot(estimates,aes(time, coef, shape=specification, color=specification)) + 
   geom_hline(yintercept=0, color="grey") +
   #geom_vline(xintercept=0, color="grey") +
   geom_point(position = pd, size=1) +
-  geom_errorbar(aes(ymin=lb,ymax=ub), width = 0.1,position = pd) +  
+  geom_errorbar(aes(ymin=lb,ymax=ub), width = 0.1, position = pd) +  
   scale_shape_manual(values = c(19,5,6)) +
   scale_colour_grey() +
   theme_classic() + 
-  labs(title = "Average Effect by Length of Exposure") + 
+  labs(shape="", color="") + 
   xlab("") + ylab("") + #facet_wrap(~specification, ncol=1, strip.position = "right")
   #xlim(-6,7) + 
-  theme(text = element_text(size=6), legend.position = c(0.5,0.9), legend.direction = "horizontal")
-  
-ggsave(file.path(path_figures, paste0("event_study_estimators",dist,".png")), dpi = 600)
+  theme(text = element_text(size=6), legend.position = c(0.5,0.95), legend.direction = "horizontal")
 
-ggplot(estimates_rf,aes(time, coef, color=specification, shape=specification)) + 
+width = 4
+ggsave(file.path(path_figures, paste0("event_study_estimators",dist,".png")), plot = first, dpi = 600, 
+       width = width, height=width*1/2, unit ="in")
+
+rf <- ggplot(estimates_rf,aes(time, coef, color=specification, shape=specification)) + 
   geom_hline(yintercept=0, color="grey") +
   #geom_vline(xintercept=0, color="grey") +
   geom_point(position = pd, size=.1) +
@@ -341,12 +337,13 @@ ggplot(estimates_rf,aes(time, coef, color=specification, shape=specification)) +
   scale_shape_manual(values = c(19,5,6)) +
   scale_colour_grey() +  
   theme_classic() + 
-  labs(title = "Average Effect by Length of Exposure") + 
+  labs(shape="", color="") + 
   xlab("") + ylab("") + #facet_wrap(~specification, ncol=1, strip.position = "right")
   #xlim(-6,7) + 
-  theme(text = element_text(size=6), legend.position = c(0.5,0.9), legend.direction = "horizontal")
+  theme(text = element_text(size=6), legend.position = c(0.5,0.95), legend.direction = "horizontal")
 
-ggsave(file.path(path_figures, paste0("event_study_estimators_rf",dist,".png")), dpi = 600)
+ggsave(file.path(path_figures, paste0("event_study_estimators_rf",dist,".png")), plot = rf, dpi = 600, 
+       width = width, height=width*1/2, unit ="in")
 
 
 ggdid(cs_dyn, width=0.1, xgap=4) + 
