@@ -110,10 +110,6 @@ if __name__ == "__main__":
     df = pd.read_csv(wd.parent/'out'/'data'/'raster_merged.csv') 
     df = gpd.GeoDataFrame(df, geometry=df['geometry'].apply(wkt.loads), crs= Kenya.crs)  
     
-    # merge raster data with county
-    # this creates some duplicates since some grid cells cover more than one county, drop later based on shortest distance to transformer
-    #df = raster#.sjoin(Kenya, how='left').drop(columns=['index_right'], axis=1)
-
     # load transformer data
     transformers = get_transformers()
     transformers.loc[transformers.county=='taita', 'county'] = 'taita taveta'
@@ -124,10 +120,7 @@ if __name__ == "__main__":
 
     # find closest transformer for each grid cell
     for index, line in df.iterrows():
-        #county = line['county']
-        # consider only transformers in the same county to speed things up
-        trans = transformers#[transformers['county'] == county]
-        # save potential transformers in dictionary
+        trans = transformers
         dists = {}
         for i, tr in trans.iterrows():
             dist = line['geometry'].boundary.distance(tr['geometry'])
@@ -142,10 +135,6 @@ if __name__ == "__main__":
     # merge transformer data to df
     transformers = transformers.rename(columns={'geometry':'geometry_transformer'})
     df = df.merge(transformers, how='left', left_on=['trans_index'], right_on=[transformers.index])
-
-    # drop duplicates based on which county has closest transformer
-    #index_to_keep = df.groupby('index')['dist_tr'].idxmin().dropna().astype(int).tolist()
-    #df = df.loc[index_to_keep,]
 
     # merge consumption information
     merge1 = df.merge(cons, how= 'inner', left_on=['item','county'], right_on=['zrefrence','county'])

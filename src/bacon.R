@@ -1,4 +1,4 @@
-
+## applies bacon decomposition based on Goodman-Bacon 2021
 library(tidyverse)
 #library(plm)
 library(fixest)
@@ -45,54 +45,42 @@ df_panel <- df_panel %>% filter(dist_tr <= 0.02, !is.na(nl))
 # define treatment
 
 df_first_vend <- df_panel %>% 
-  mutate(time_to_treatment = yearquarter - date_first_vend_prepaid) 
+  mutate(time_to_treatment = (yearquarter - date_first_vend_prepaid)*4) 
 
-max_treat = max(df_first_vend$date_first_vend_prepaid,na.rm=TRUE)
-df_first_vend <- df_first_vend %>% 
-  mutate(time_to_treatment = ifelse(date_first_vend_prepaid >= max_treat, -100000, time_to_treatment))
+#max_treat = max(df_first_vend$date_first_vend_prepaid,na.rm=TRUE)
+#df_first_vend <- df_first_vend %>% 
+#  mutate(time_to_treatment = ifelse(date_first_vend_prepaid >= max_treat, -100000, time_to_treatment)) %>%
+ # filter(yearquarter < max_treat)
 
-df_first_vend[!is.na(df_first_vend$date_first_vend_prepaid),'date_first_vend_prepaid']
+staggered_first_vend <- feols(fml = log(pol) ~ 1| index + yearquarter | nl ~ i(time_to_treatment, ref = c(-1,-100000)), 
+                              data=df_first_vend,
+                              vcov=vcov_cluster("geometry_transformer"))
 
-staggered_first_vend <- feols(fml = nl ~ 1 + i(time_to_treatment,ref = c(-.25, -100000)) | index + yearquarter , 
+df_first_vend <- df_first_vend %>% mutate(post = ifelse(yearquarter >= date_first_vend_prepaid, 1, 0))
+
+
+fe <- feols(fml = nl ~ 1 + post | index + yearquarter , 
                               data=df_first_vend , 
                               vcov=vcov_conley(lat='lat',lon='lon'))
-'''
-agg_stag_first_vend <- aggregate(staggered_first_vend, agg=c("ATT" = "(.*)"))
-
-summary(sunab_first_vend, agg = "att")
-summary(staggered_first_vend, agg = "(.*)")
-
-sunab_first_vend <- feols(fml = nl~ sunab(date_first_vend_prepaid,yearquarter)|index + yearquarter, 
-                          data=df_first_vend %>% filter(!is.na(date_first_vend_prepaid)))
-summary(sunab_first_vend, agg = "att")
-aggregate(sunab_first_vend, agg="att", vcov=vcov_conley(lat="lat",lon="lon"))
-aggregate(staggered_first_vend, agg=c("ATT" = "(.*)"))
-
-iplot(list(staggered_first_vend, sunab_first_vend), sep=0.1)
-legend("topleft", col = c(1, 2), pch = c(20, 17), 
-       legend = c("TWFE", "Sun & Abraham (2020)"))
-'''
-
 # becon de comp
 # late vs. early is the problem
 #install.packages("bacondecomp")
 library(bacondecomp)
 
-df_first_vend <- df_first_vend %>% mutate(post = ifelse(time_to_treatment >= 0, 1, 0))
 #df_first_vend$yearquarter <- df_first_vend$yearquarter %>% as.integer()
 
 #df_first_vend %>% select(index, yearquarter, date_first_vend_prepaid, time_to_treatment, post) %>% filter(!is.na(post))
 
 
-bacon_res <- bacon(pol ~ post, 
+bacon_res <- bacon(nl ~ post, 
       data = df_first_vend %>% filter(!is.na(post)),
       id_var = "index",
       time_var = "yearquarter")
 '''
                       type  weight  avg_est
-1 Earlier vs Later Treated 0.45785  0.02306
-2 Later vs Earlier Treated 0.49204 -0.03403
-3     Treated vs Untreated 0.05012  0.04377
+1 Earlier vs Later Treated 0.50025 -0.33125
+2 Later vs Earlier Treated 0.45408  0.92865
+3     Treated vs Untreated 0.04567 -1.197647
 '''
 0.45875 * 0.02306 + 0.49204 * -0.03403 + 0.05012 * 0.04377  # not significant
 
@@ -107,9 +95,6 @@ ggplot(bacon_res) +
   labs(x = "Weight", y = "Estimate", color = "Type", shape="Type")
 
 
-fe <- feols(fml = log(pol) ~ 1 + post | index + yearquarter , 
-                              data=df_first_vend , 
-                              vcov=vcov_conley(lat='lat',lon='lon'))
 
 0.45876 * 0.02269 + 0.49084 * -0.03358 + 0.0504 * 0.04361  # not significant
 

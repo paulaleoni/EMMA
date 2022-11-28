@@ -69,6 +69,7 @@ def plot_population(df_yearly, Kenya, path_figure, cmap='PuBuGn', save=True):
     # plot pop dens of 2015
     data = gdf_yearly[gdf_yearly.year == 2015]
     v = 'pop_dens'
+    data[v] = np.log1p(data[v])
     vmin = data[[v]].min()[0]
     vmax = data[[v]].max()[0]
     vcenter = data[[v]].quantile(0.5)[0]
@@ -87,6 +88,7 @@ def plot_pol_nl(df_yearly, Kenya, path_figure, cmap='PuBuGn', save=True):
     years = [2015, 2020]
     for v in ['pol','nl']:
         data = gdf_yearly
+        data[v] = np.log1p(data[v])
         vmin = data[[v]].min()[0]
         vmax = data[[v]].max()[0]
         vcenter = data[[v]].quantile(0.5)[0]
@@ -100,7 +102,7 @@ def plot_pol_nl(df_yearly, Kenya, path_figure, cmap='PuBuGn', save=True):
         patch_col = axes[0].collections[0]
         cb = fig.colorbar(patch_col, ax=axes, shrink=.5)
         if save==True:
-            fig.savefig(path_figure/f'map_{v}',bbox_inches='tight',pad_inches = 0, dpi=200)
+            fig.savefig(path_figure/f'map_{v}.png',bbox_inches='tight',pad_inches = 0, dpi=300)
 
 def plot_ts(df, var=str, by=str):
     # prepare data
@@ -134,44 +136,5 @@ if __name__ == "__main__":
     plot_population(df_yearly, Kenya, path_figure, cmap="plasma", save=True)
     plot_pol_nl(df_yearly, Kenya, path_figure, cmap="plasma", save=True)
     #
-    plot_ts(df, "pol", by="direction")
+    plot_ts(df, "pol", by=None)
     plot_ts(df, "nl", by=None)
-
-
-'''
-# residualize pollution
-data = df[df.date_first_vend_prepaid.notnull() & (df.dist_tr <= 0.02)]
-data = data.set_index(['index','yearmonth'])
-exog = sm.add_constant(data['pop_dens'])
-dep = data['pol']
-mod = PanelOLS(dependent=dep,exog=exog, drop_absorbed=True)
-res = mod.fit()
-
-pred = res.predict(exog)
-
-pol_residuals = dep-pred['predictions']
-pol_residuals = pol_residuals.rename('pol_residuals')#.reset_index()
-
-data = data.merge(pol_residuals, left_index=True, right_index=True).reset_index()
-
-# time series of all groups
-# drop grid cells with no population
-ts_group = data.groupby(['yearmonth'])[['nl', 'pol', 'pol_residuals']].median().reset_index()
-ts_group['yearmonth'] = pd.to_datetime(ts_group['yearmonth'], format='%Y%m')
-# set cmap colors
-cmap = plt.get_cmap('Accent')
-cls = [cmap.colors[0], cmap.colors[2],cmap.colors[5],cmap.colors[7]]
-cls = [colors.to_hex(x) for x in cls]
-    
-
-# nightlight time series for distinct years
-for y in [2016, 2017, 2018, 2019, 2020]:
-    fig, ax = plt.subplots()
-    ax.set_prop_cycle(color=cls)
-    for g in ts_group.group.unique().tolist():
-        data= ts_group[(ts_group.group==g) & (ts_group.yearmonth.dt.year == y)]
-        ax.plot('yearmonth','nl', data=data, label=g)
-    ax.legend()
-    plt.tight_layout()
-    fig.savefig(path_figure/f'ts_nl_{y}_median.png')
-'''

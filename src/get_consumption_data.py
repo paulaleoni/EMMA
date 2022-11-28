@@ -1,8 +1,8 @@
 '''
-extract some parameters on transformer from consumption data
-output: 
-consumption.csv
-transformer_ids.csv
+extract some parameters on transformers from consumption data
+- combines different sources of billing data to extract maximum information (inconsistend identifiers)
+- get first date a transformer region purchased electricity via prepaid tokens 
+output: consumption_firsts.csv
 '''
 
 

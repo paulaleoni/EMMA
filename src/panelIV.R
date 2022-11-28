@@ -38,20 +38,26 @@ source(file.path(wd, "helper-conley.R"))
 df_path <- file.path(wd.parent,'out','data','dataset_quarter.csv')
 df <- read.csv(df_path)
 
+# transform nl
+
+df <- df %>% mutate(nl = log1p(nl))
 
 
-#df <- df %>% mutate(quarter = format(round(yearquarter,2), nsmall=2) %>% substring(6))
 
-for (dist in c(.02,.01)) {
+for (dist in c(.02,.01, .03)) {
   #dist=.02
 # keep only those whose distance to transformer is reasonable #0.01 deg = 1111 m
-df_panel <- df %>% filter(dist_tr <= dist, !is.na(nl))
+df_panel <- df %>% filter(dist_tr <= dist, !is.na(nl), !is.na(date_first_vend_prepaid))
 
-#df_panel <- df_panel %>% filter(date_first_vend_prepaid >= 2015)
+# how many time periods
+df_panel %>% select(yearquarter) %>% distinct() %>% summarise(n = n())
 
-#df_panel  %>% group_by(date_first_vend_prepaid) %>% summarise(n())
-df_panel %>% select(index, date_first_vend_prepaid) %>% distinct() %>% group_by(date_first_vend_prepaid) %>% summarise(n())
-#df_panel <- df_panel %>% filter(date_first_vend_prepaid >= 2016)
+# how many grid cells
+df_panel %>% select(index) %>% distinct() %>% summarise(n = n())
+
+# how many grid cells per group
+# df_panel %>% select(index, date_first_vend_prepaid) %>% distinct() %>% group_by(date_first_vend_prepaid) %>% summarise(n())
+
 
 cluster_first = "geometry_transformer" # "geometry_transformer"
 
@@ -65,7 +71,7 @@ df_first_vend <- df_panel %>%
 max_treat = max(df_first_vend$date_first_vend_prepaid,na.rm=TRUE)
 df_first_vend <- df_first_vend %>% 
   mutate(time_to_treatment = ifelse(date_first_vend_prepaid >= max_treat, -100000, time_to_treatment)) %>%
-  filter(yearquarter < max_treat)
+  filter(yearquarter < max_treat, yearquarter >= 2012.5)
 
 staggered_first_vend <- feols(fml = log(pol) ~ 1| index + yearquarter | nl ~ i(time_to_treatment, ref = c(-1,-100000)), 
                               data=df_first_vend,
@@ -74,6 +80,19 @@ staggered_first_vend <- feols(fml = log(pol) ~ 1| index + yearquarter | nl ~ i(t
 staggered_rf <- feols(fml = log(pol) ~ i(time_to_treatment, ref = c(-1,-100000))| index + yearquarter , 
                               data=df_first_vend,
                               vcov=vcov_cluster(cluster_first))
+
+#sumFE = staggered_rf$sumFE
+#df_first_vend %>% drop_na(time_to_treatment) %>% group_by(index, yearquarter) %>% 
+#  summarise(fe = mean(log(pol))) %>% summary()
+
+#fe_reg <- feols(fml = log(pol) ~ 1 + i(index) +i(yearquarter) , 
+ #                     data=df_first_vend %>% drop_na(time_to_treatment))
+
+#dummies = fe_reg$fitted.values
+#summary(sumFE-fe_reg$sumFE)
+
+#fixef(fe_reg)$index - fixef(staggered_rf)$index
+
 ######################
 
 #data <- df_first_vend %>% drop_na(time_to_treatment) %>% ungroup()
@@ -151,10 +170,10 @@ df_2x2 <- df_panel %>% group_by(index, year) %>% summarise(nl=mean(nl),
   filter(year %in% c(2015,2020)) %>%
   mutate(post = ifelse(year == 2020,1,0)) 
 
-# take last group treated as never-treated - set treatment date above maximum date
-max_treat = max(df_2x2$date_first_vend_prepaid,na.rm=TRUE)
+# take groups treated in 2020 as never-treated - set treatment date above maximum date
+#max_treat = max(df_2x2$date_first_vend_prepaid,na.rm=TRUE)
 df_2x2 <- df_2x2 %>% 
-  mutate(date_first_vend_prepaid = ifelse(date_first_vend_prepaid >= max_treat, 100000, date_first_vend_prepaid))
+  mutate(date_first_vend_prepaid = ifelse(date_first_vend_prepaid >= 2020, 100000, date_first_vend_prepaid))
 df_2x2 <- df_2x2 %>% mutate(treat = ifelse(date_first_vend_prepaid==100000,0,
                                            ifelse(!is.na(date_first_vend_prepaid),1,0)))
 
@@ -211,12 +230,26 @@ atts <- tibble(did_group=out$group, yearquarter = out$t, att = out$att)
 
 
 cs_coefs <-  df_cs_first_vend %>% group_by(yearquarter, did_group) %>% 
-  summarise(nl_gt=mean(nl)) %>% inner_join(atts) %>% mutate(pred = nl_gt+att)
+  summarise(nl_gt=mean(nl)) %>% inner_join(atts) %>% mutate(pred = att)#nl_gt+
 
 
-predictions <- df_cs_first_vend %>% drop_na(did_group) %>%
+predictions <- df_cs_first_vend %>%
   left_join(cs_coefs) %>% drop_na(pred) %>% mutate(res = nl-pred) 
+#'''
+#mnl = mean(predictions$nl)
+#r2 = sum((predictions$pred-mnl)^2) / sum((predictions$nl-mnl)^2)
+#ssr_null = sum((predictions$nl - mean(predictions$nl))^2)
+#ssr = sum(predictions$res^2)
+#k = length(out$att)
+#n = out$DIDparams$n * out$DIDparams$nT
 
+#f = r2 * (n-k)/k
+
+#df1 = k
+#df2 = 106
+
+#f = ((ssr_null - ssr ) / df1 ) / (ssr / df2)
+#'''
 
 # estimate second stage
 cs_first_vend <- feols(log(pol) ~ 1 + pred | index + yearquarter,
@@ -272,8 +305,6 @@ stag_se <- staggered_first_vend$iv_first_stage$nl$se
 stag_se_rf <- staggered_rf$se
 
 stag_est <- tibble(time = names(stag_coefs), coef = stag_coefs,se = stag_se, 
-                   #CIlow = confint(staggered_first_vend$iv_first_stage$nl)[,1],
-                   #CIhigh = confint(staggered_first_vend$iv_first_stage$nl)[,2],
                    specification = "TWFE" )
 
 stag_est_rf <- tibble(time = names(stag_coefs_rf), coef = stag_coefs_rf, se = stag_se_rf, 
@@ -363,18 +394,19 @@ ggdid(cs_dyn, width=0.1, xgap=4) +
 file <- paste0('table_second_stage', dist, '.tex')
 path_table <- file.path(path_results, file)
 label <- paste0("tab:estimates",dist)
+title <- paste("Second stage results -", dist, "° circle")
 
 etable(cs_first_vend, sunab_first_vend, staggered_first_vend,did_2x2_first_vend,
        vcov = vcov_conley(lat="lat",lon="lon"),
-       fitstat = c("n","ar2","f.stat","ivf1.stat"),
-       se.row=TRUE,
+       fitstat = c("n","ar2","f.stat"),
+       se.row=NULL,
        headers = c("Callaway & Sant'Anna",
                    'Sun & Abraham',
                    'dynamic TWFE',
-                   " 2x2 did"),
-       placement= 'H', adjustbox = TRUE, fit_format = "$\\widehat{__var__}$",
-       dict = c("resest", pred="$\\widehat{nl}$", index="grid cell"),label=label,
-       title = 'results of second stage',
+                   "canonical DiD"),
+       placement= 'ht', adjustbox = TRUE, fit_format = "$\\widehat{log(__var__)}$",
+       dict = c(pred="$\\widehat{log(nl)}$", index="grid cell"),label=label,
+       title = title,
        file=path_table,replace = TRUE
        )
 

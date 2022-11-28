@@ -53,7 +53,6 @@ if __name__ == "__main__":
     # delete files from memory
     del(agg)
     gc.collect()
-    
 
     # get lines
     lines = pd.read_csv(wd.parent/'out'/'data'/'lines.csv')

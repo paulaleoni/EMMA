@@ -1,6 +1,6 @@
 '''
 This script downloades nightlight data from https://eogdata.mines.edu/nighttime_light/monthly/v10/ in the area of Kenya (shapefile from https://purl.stanford.edu/fc462cc8966) and exports a csv with all the data for the given timeframe. Additionally it saves the list of downloaded files in a txt.
-
+output: nightlight_raw.csv , files_list_nightlight.txt
 '''
 
 from base64 import decode
